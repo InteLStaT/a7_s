@@ -21,7 +21,7 @@ import org.ucoz.intelstat.gc.GHand;
  */
 // TODO: THROW EXCEPTIONS IN APPROPRIATE GETTERS IF THE GAME HASN'T STARTED
 public class Game {
-// asd
+	
 	public static final int INITIAL_HAND_SIZE = 5;
 	public static final int MIN_PLAYER_COUNT = 2;
 	public static final int MAX_PLAYER_COUNT = 6;
@@ -281,7 +281,7 @@ public class Game {
 	// I will disable reflection anyways.
 	// TODO: disable reflection.
 	private class GameLoop implements Runnable, GameListener {
-
+// asd commit to other branch
 		/***************
 		 * GAME LOOP *
 		 ***************/
