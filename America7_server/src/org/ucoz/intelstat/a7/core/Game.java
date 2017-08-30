@@ -21,7 +21,9 @@ import org.ucoz.intelstat.gc.GHand;
  */
 // TODO: THROW EXCEPTIONS IN APPROPRIATE GETTERS IF THE GAME HASN'T STARTED
 public class Game {
-	
+
+	private static final int AWAIT_GED_TIME = 500;
+
 	public static final int INITIAL_HAND_SIZE = 5;
 	public static final int MIN_PLAYER_COUNT = 2;
 	public static final int MAX_PLAYER_COUNT = 6;
@@ -113,11 +115,13 @@ public class Game {
 		return gameState;
 	}
 
-	public Player getStartingPlayer() {
+	public Player getStartingPlayer() throws IllegalGameStateException {
+		_checkPregameException();
 		return getPlayers()[0];
 	}
 
-	public Player getCurrentPlayer() {
+	public Player getCurrentPlayer() throws IllegalGameStateException {
+		_checkPregameException();
 		return curPlayer;
 	}
 
@@ -125,27 +129,33 @@ public class Game {
 		return players;
 	}
 
+	/**
+	 * Returns the deck's size from which cards are drawn by players.
+	 * A value of 32 indicates the game hasn't started yet.
+	 */
+	// TODO: check pregame exception or not? if yes, remove doc
 	public int getDrawDeckSize() {
 		return drawDeck.getSize();
 	}
 
-	public GCard getTopCard() {
+	public GCard getTopCard() throws IllegalGameStateException {
+		_checkPregameException();
 		return topCard;
 	}
 
-	public int getRound() {
+	public int getRound() throws IllegalGameStateException {
+		_checkPregameException();
 		return round;
 	}
 
-	public Player getWinner() {
-		if (getGameState() == GameState.POSTGAME) {
-			return winner;
-		} else {
-			throw PREGAME_EXCEPTION;
+	public Player getWinner() throws IllegalGameStateException {
+		if (getGameState() != GameState.POSTGAME) {
+			throw getGameState() == GameState.PREGAME ? PREGAME_EXCEPTION : POSTGAME_EXCEPTION;
 		}
+		return winner;
 	}
 
-	public void start() {
+	public void start() throws IllegalGameStateException {
 		if (gameState == GameState.PREGAME) {
 			if (playerCount >= MIN_PLAYER_COUNT && playerCount <= MAX_PLAYER_COUNT) {
 
@@ -197,11 +207,16 @@ public class Game {
 		}
 	}
 
-	private static final int AWAIT_GED_TIME = 500;
 	private void _awaitGED() {
 		_sleep(AWAIT_GED_TIME);
 	}
 
+	private void _checkPregameException() throws IllegalGameStateException {
+		if(getGameState() == GameState.PREGAME) {
+			throw PREGAME_EXCEPTION;
+		}
+	}
+	
 	public class Player {
 
 		private final String name;
@@ -277,69 +292,26 @@ public class Game {
 
 	}
 
-	// I very much like public interface methods. Not like anybody's gonna get access to it.
+	private int underStreak;
+	private int aceStreak;
+
+	// I very much like public interface methods. Not like anybody's gonna get
+	// access to it.
 	// I will disable reflection anyways.
 	// TODO: disable reflection.
 	private class GameLoop implements Runnable, GameListener {
-// asd commit to other branch
+
 		/***************
 		 * GAME LOOP *
 		 ***************/
-		// TODO: mess.
+		// TODO: still mess, but more mess. please make less mess.
 		public void run() {
-			curPlayerIdx = 0;
-			curPlayer = players[curPlayerIdx];
+			// Set up first player
+			curPlayer = getPlayers()[0];
+			curPlayerIdx = curPlayer.getIndex();
+			assert curPlayerIdx == 0;
 			/* EVENT */currentPlayerChanged(new GamePassiveEvent(Game.this, curPlayer, round, gameState, gameState));
 
-			while (getGameState() == GameState.INGAME) {
-				boolean valid = false;
-				boolean drew = false;
-				GCard card = null;
-				while (!valid) {
-					card = curPlayer.requestCard();
-					if (card == null) {
-						// TODO: refine draw code
-						drawDeck.dealTo(curPlayer.getHand(), 1);
-						/* EVENT */deckSizeDecreased(
-								new GameQuantitativeEvent(Game.this, getDrawDeckSize() + 1, getDrawDeckSize()));
-						valid = true;
-						drew = true;
-					} else {
-						valid = GameRules.isValidMove(topCard, card, Game.this, curPlayer);
-					}
-				}
-				if (!drew) {
-					curPlayer.getHand().removeCard(card);
-					/* EVENT */playerCardCountChanged(new GameQuantitativeEvent(Game.this, curPlayer.getCardCount() + 1,
-							curPlayer.getCardCount()), curPlayer);
-					topCard = card;
-					putInPile(topCard);
-
-					if (curPlayer.getCardCount() == 0) {
-						winner = curPlayer;
-						gameState = GameState.POSTGAME;
-						/* EVENT */gameStateChanged(new GamePassiveEvent(Game.this, curPlayer, round, GameState.INGAME,
-								GameState.POSTGAME));
-						break;
-					}
-				} else {
-					if (drawDeck.getSize() == 0) {
-						pile.remove(pile.size() - 1);
-						Collections.reverse(pile);
-						drawDeck = GDeck.customDeck(pile);
-						/* EVENT */deckRefilled(Game.this);
-						pile.clear();
-					}
-				}
-
-				curPlayerIdx = (curPlayerIdx + 1) % playerCount;
-				curPlayer = players[curPlayerIdx];
-
-				if (curPlayerIdx == 0) {
-					round++;
-					/* EVENT */roundChanged(new GameQuantitativeEvent(Game.this, round - 1, round));
-				}
-			}
 		}
 
 		/************************
