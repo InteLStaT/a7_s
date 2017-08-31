@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 import org.ucoz.intelstat.gc.GCard;
 import org.ucoz.intelstat.gc.GDeck;
 import org.ucoz.intelstat.gc.GHand;
+import org.ucoz.intelstat.gc.GCard.Rank;
 
 /**
  * Represents an America 7 card game. Players can join the game by creating an
@@ -271,10 +272,14 @@ public class Game {
 			return ctrl.proposeCard(hand.readonlyView(), getGame(), this);
 		}
 
-		private GCard askForSuit(GCard.Suit suit) {
-			return ctrl.askedForSuit(hand.readonlyView(), getGame(), this, suit);
+		private GCard requestCardWithSuit(GCard.Suit suit) {
+			return ctrl.proposeCardWithSuit(hand.readonlyView(), getGame(), this, suit);
 		}
-
+		
+		private GCard.Suit requestSuit(){
+			return ctrl.proposeSuit(hand.readonlyView(), getGame(), this);
+		}
+		
 		private GHand getHand() {
 			return hand;
 		}
@@ -334,15 +339,32 @@ public class Game {
 			/* EVENT */currentPlayerChanged(new GamePassiveEvent(Game.this, curPlayer, round, gameState, gameState));
 
 			// NOW THE REAL LOOP
-			// REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE CHECK BECAUSE CHEATSSSSS
-			// REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE CHECK BECAUSE CHEATSSSSS
-			// REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE CHECK BECAUSE CHEATSSSSS
+			// REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE CHECK BECAUSE NON-ENDING GAME
+			// REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE CHECK BECAUSE NON-ENDING GAME
+			// REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE CHECK BECAUSE NON-ENDING GAME
 			while (true) {
-				// ask until the player makes a valid move
+				// ask card until the player makes a valid move
 				while (!isValidMove) {
 					if (isAskingSuit) {
-						proposedCard = curPlayer.askForSuit(askedSuit);
-					}
+						proposedCard = curPlayer.requestCardWithSuit(askedSuit);
+						// Null signifies a draw because I can't be bothered with an other way of drawing honestly
+						if(proposedCard == null) {
+							stock.dealTo(curPlayer.getHand(), 1);
+							isValidMove = true;
+						}
+						// In case of SEVEN, change asked suit, null is handled
+						else if(proposedCard.getRank() == GCard.Rank.SEVEN) {
+							askedSuit = curPlayer.requestSuit();
+							if(askedSuit == null) {
+								askedSuit = GCard.Suit.values()[0];
+								isValidMove = true;
+							}
+						}
+						// If none of the above, check if card has the asked suit
+						else if(GameRules.isValidAskedCard(proposedCard, askedSuit)) {
+							isValidMove = true;
+						}
+					} // TODO: left off with wanting to do streaks
 				}
 			}
 
