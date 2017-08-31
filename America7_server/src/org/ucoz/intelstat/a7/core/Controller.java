@@ -45,5 +45,6 @@ public interface Controller {
 	 * @param suit
 	 *            the suit being asked for
 	 */
-	GCard askedForSuit(List<GCard> handView, Game game, Player player, GCard.Suit suit);
+	GCard proposeCardWithSuit(List<GCard> handView, Game game, Player player, GCard.Suit suit);
+	GCard.Suit proposeSuit(List<GCard> handView, Game game, Player player);
 }
