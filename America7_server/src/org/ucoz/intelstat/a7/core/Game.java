@@ -11,10 +11,16 @@ import org.ucoz.intelstat.gc.GDeck;
 import org.ucoz.intelstat.gc.GHand;
 
 /**
- * Encapsulates an America 7 game on the server side, without doing any
- * networking. Players can join the game by creating an instance of the nested
- * class {@code Player}. A game can have anywhere from 2 to 6 players, although
- * 5- or 6-player games are considered non-standard.
+ * Represents an America 7 card game. Players can join the game by creating an
+ * instance of the nested class {@code Player}. A game can have anywhere from 2
+ * to 6 players, although 5- or 6-player games are considered non-standard.
+ * <h1>Constitution of a game</h1>
+ * <ul>
+ * <li>a deck of German playing cards as defined {@link GCard here}
+ * <li>2 to 6 players arranged in a circle
+ * <li>the top card with a pile of previous top cards
+ * </ul>
+ * For the rules of the game, see {@link GameRules}.
  * 
  * @author InteLStaT
  *
@@ -38,15 +44,19 @@ public class Game {
 	private int playerCount;
 
 	/**
-	 * The deck from which cards are dealt to players and are drawn from.
+	 * The face-down deck of cards from which cards are dealt to players and are
+	 * drawn from by them.
 	 */
-	private GDeck drawDeck;
+	private GDeck stock;
 	/**
-	 * The pile in which cards are put into.
+	 * The pile in which cards are put into by players. The top card is the one
+	 * which was put the last into the pile.
+	 * @see #topCard
 	 */
 	private List<GCard> pile;
 	/**
 	 * The top card in the pile.
+	 * @see #pile
 	 */
 	private GCard topCard;
 
@@ -98,7 +108,7 @@ public class Game {
 
 	public Game() {
 		players = new Player[6];
-		drawDeck = GDeck.shuffledDeck();
+		stock = GDeck.shuffledDeck();
 		pile = new ArrayList<>(32);
 		gameLoopThread = new Thread(gameLoop = new GameLoop());
 	}
@@ -130,12 +140,12 @@ public class Game {
 	}
 
 	/**
-	 * Returns the deck's size from which cards are drawn by players.
-	 * A value of 32 indicates the game hasn't started yet.
+	 * Returns the deck's size from which cards are drawn by players. A value of
+	 * 32 indicates the game hasn't started yet.
 	 */
 	// TODO: check pregame exception or not? if yes, remove doc
 	public int getDrawDeckSize() {
-		return drawDeck.getSize();
+		return stock.getSize();
 	}
 
 	public GCard getTopCard() throws IllegalGameStateException {
@@ -174,7 +184,7 @@ public class Game {
 	private void setGameState(GameState state) {
 		gameState = state;
 	}
-	
+
 	private void _sleep(long millis) {
 		try {
 			Thread.sleep(millis);
@@ -188,11 +198,11 @@ public class Game {
 	}
 
 	private void _checkPregameException() throws IllegalGameStateException {
-		if(getGameState() == GameState.PREGAME) {
+		if (getGameState() == GameState.PREGAME) {
 			throw PREGAME_EXCEPTION;
 		}
 	}
-	
+
 	public class Player {
 
 		private final String name;
@@ -258,7 +268,11 @@ public class Game {
 		}
 
 		private GCard requestCard() {
-			return ctrl.proposeCard(topCard, hand.readonlyView(), getGame(), this);
+			return ctrl.proposeCard(hand.readonlyView(), getGame(), this);
+		}
+
+		private GCard askForSuit(GCard.Suit suit) {
+			return ctrl.askedForSuit(hand.readonlyView(), getGame(), this, suit);
 		}
 
 		private GHand getHand() {
@@ -277,15 +291,17 @@ public class Game {
 		private int aceStreak = 0;
 		private boolean isUnderStreak = false;
 		private boolean isAceStreak = false;
+		private boolean isAskingSuit;
 		private boolean isValidMove = false;
 		private GCard proposedCard = null;
-		
+		private GCard.Suit askedSuit = null;
+
 		/***************
 		 * GAME LOOP *
 		 ***************/
 		// TODO: still mess, but more mess. please make less mess.
 		public void run() {
-			
+
 			// RANDOMIZE PLAYERS
 			Random rgen = new Random();
 			for (int i = 0; i < playerCount; i++) {
@@ -298,30 +314,35 @@ public class Game {
 			// PLAYER SETUP
 			for (int i = 0; i < playerCount; i++) {
 				players[i].setIndex(i);
-				drawDeck.dealTo(players[i].getHand(), 5);
+				stock.dealTo(players[i].getHand(), 5);
 			}
 
 			// GAME SETUP
-			topCard = drawDeck.dealCard();
+			topCard = stock.dealCard();
 			putInPile(topCard);
 
 			setGameState(GameState.INGAME);
 			/* EVENT */gameLoop
 					.gameStateChanged(new GamePassiveEvent(Game.this, null, round, GameState.PREGAME, gameState));
-			
+
 			// Pause for a second... no way the game is already starting!
 			_sleep(1000);
-			
+
 			// Set up first player
 			curPlayer = getPlayers()[0];
 			curPlayerIdx = curPlayer.getIndex();
-			assert curPlayerIdx == 0;
 			/* EVENT */currentPlayerChanged(new GamePassiveEvent(Game.this, curPlayer, round, gameState, gameState));
-			
+
 			// NOW THE REAL LOOP
-			while(true) {
-				while(!isValidMove) {
-					
+			// REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE CHECK BECAUSE CHEATSSSSS
+			// REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE CHECK BECAUSE CHEATSSSSS
+			// REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE CHECK BECAUSE CHEATSSSSS
+			while (true) {
+				// ask until the player makes a valid move
+				while (!isValidMove) {
+					if (isAskingSuit) {
+						proposedCard = curPlayer.askForSuit(askedSuit);
+					}
 				}
 			}
 
