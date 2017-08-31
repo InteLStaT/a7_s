@@ -158,37 +158,9 @@ public class Game {
 	public void start() throws IllegalGameStateException {
 		if (gameState == GameState.PREGAME) {
 			if (playerCount >= MIN_PLAYER_COUNT && playerCount <= MAX_PLAYER_COUNT) {
-
-				// RANDOMIZE PLAYERS
-				Random rgen = new Random();
-				for (int i = 0; i < playerCount; i++) {
-					int rand = rgen.nextInt(playerCount);
-					Player temp = players[i];
-					players[i] = players[rand];
-					players[rand] = temp;
-				}
-
-				// PLAYER SETUP
-				for (int i = 0; i < playerCount; i++) {
-					players[i].setIndex(i);
-					drawDeck.dealTo(players[i].getHand(), 5);
-				}
-
-				// GAME SETUP
-				topCard = drawDeck.dealCard();
-				putInPile(topCard);
-
-				// Pause for a second... no way the game is already starting!
-				_sleep(1000);
-
-				gameState = GameState.INGAME;
-				/* EVENT */gameLoop
-						.gameStateChanged(new GamePassiveEvent(this, null, round, GameState.PREGAME, gameState));
-
-				// Dem best part of this whole thing
 				gameLoopThread.start();
 			} else {
-				throw new IllegalStateException("Player count isn't between allowed bounds");
+				throw new IllegalGameStateException("Player count isn't between allowed bounds");
 			}
 		} else {
 			throw getGameState() == GameState.INGAME ? INGAME_EXCEPTION : POSTGAME_EXCEPTION;
@@ -306,6 +278,34 @@ public class Game {
 		 ***************/
 		// TODO: still mess, but more mess. please make less mess.
 		public void run() {
+			
+			// RANDOMIZE PLAYERS
+			Random rgen = new Random();
+			for (int i = 0; i < playerCount; i++) {
+				int rand = rgen.nextInt(playerCount);
+				Player temp = players[i];
+				players[i] = players[rand];
+				players[rand] = temp;
+			}
+
+			// PLAYER SETUP
+			for (int i = 0; i < playerCount; i++) {
+				players[i].setIndex(i);
+				drawDeck.dealTo(players[i].getHand(), 5);
+			}
+
+			// GAME SETUP
+			topCard = drawDeck.dealCard();
+			putInPile(topCard);
+
+			// Pause for a second... no way the game is already starting!
+			_sleep(1000);
+
+			gameState = GameState.INGAME;
+			/* EVENT */gameLoop
+					.gameStateChanged(new GamePassiveEvent(Game.this, null, round, GameState.PREGAME, gameState));
+			
+			
 			// Set up first player
 			curPlayer = getPlayers()[0];
 			curPlayerIdx = curPlayer.getIndex();
