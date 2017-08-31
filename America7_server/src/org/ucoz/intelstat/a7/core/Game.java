@@ -103,11 +103,11 @@ public class Game {
 		gameLoopThread = new Thread(gameLoop = new GameLoop());
 	}
 
-	public void addGameListener(GameListener l) {
+	public synchronized void addGameListener(GameListener l) {
 		listeners.add(l);
 	}
 
-	public void removeGameListener(GameListener l) {
+	public synchronized void removeGameListener(GameListener l) {
 		listeners.remove(l);
 	}
 
@@ -156,7 +156,7 @@ public class Game {
 	}
 
 	public void start() throws IllegalGameStateException {
-		if (gameState == GameState.PREGAME) {
+		if (getGameState() == GameState.PREGAME) {
 			if (playerCount >= MIN_PLAYER_COUNT && playerCount <= MAX_PLAYER_COUNT) {
 				gameLoopThread.start();
 			} else {
@@ -171,6 +171,10 @@ public class Game {
 		pile.add(card);
 	}
 
+	private void setGameState(GameState state) {
+		gameState = state;
+	}
+	
 	private void _sleep(long millis) {
 		try {
 			Thread.sleep(millis);
@@ -214,7 +218,6 @@ public class Game {
 			hand = new GHand();
 			this.name = name;
 			this.ctrl = ctrl;
-			/* EVENT */ged.invokeLater(() -> ctrl.init(this));
 			/* EVENT */gameLoop.playerJoined(new GamePassiveEvent(Game.this, this, round, gameState, gameState));
 		}
 
@@ -255,7 +258,7 @@ public class Game {
 		}
 
 		private GCard requestCard() {
-			return ctrl.proposeCard(topCard, hand, getGame(), this);
+			return ctrl.proposeCard(topCard, hand.readonlyView(), getGame(), this);
 		}
 
 		private GHand getHand() {
@@ -264,15 +267,19 @@ public class Game {
 
 	}
 
-	private int underStreak;
-	private int aceStreak;
-
 	// I very much like public interface methods. Not like anybody's gonna get
 	// access to it.
 	// I will disable reflection anyways.
 	// TODO: disable reflection.
 	private class GameLoop implements Runnable, GameListener {
 
+		private int underStreak = 0;
+		private int aceStreak = 0;
+		private boolean isUnderStreak = false;
+		private boolean isAceStreak = false;
+		private boolean isValidMove = false;
+		private GCard proposedCard = null;
+		
 		/***************
 		 * GAME LOOP *
 		 ***************/
@@ -298,19 +305,25 @@ public class Game {
 			topCard = drawDeck.dealCard();
 			putInPile(topCard);
 
-			// Pause for a second... no way the game is already starting!
-			_sleep(1000);
-
-			gameState = GameState.INGAME;
+			setGameState(GameState.INGAME);
 			/* EVENT */gameLoop
 					.gameStateChanged(new GamePassiveEvent(Game.this, null, round, GameState.PREGAME, gameState));
 			
+			// Pause for a second... no way the game is already starting!
+			_sleep(1000);
 			
 			// Set up first player
 			curPlayer = getPlayers()[0];
 			curPlayerIdx = curPlayer.getIndex();
 			assert curPlayerIdx == 0;
 			/* EVENT */currentPlayerChanged(new GamePassiveEvent(Game.this, curPlayer, round, gameState, gameState));
+			
+			// NOW THE REAL LOOP
+			while(true) {
+				while(!isValidMove) {
+					
+				}
+			}
 
 		}
 
@@ -318,53 +331,53 @@ public class Game {
 		 * EVENT FIRING METHODS *
 		 ************************/
 		@Override
-		public void playerJoined(GamePassiveEvent e) {
+		public synchronized void playerJoined(GamePassiveEvent e) {
 			System.err.println("  \033[31m+Player joined\033[0m");
 			System.err.println("  \033[33m└─Event dispatched to " + listeners.size() + "\033[0m");
 			ged.postEvent(listeners, (l) -> l.playerJoined(e));
 		}
 
 		@Override
-		public void playerLeft(GamePassiveEvent e) {
+		public synchronized void playerLeft(GamePassiveEvent e) {
 			ged.postEvent(listeners, (l) -> l.playerLeft(e));
 		}
 
 		@Override
-		public void currentPlayerChanged(GamePassiveEvent e) {
+		public synchronized void currentPlayerChanged(GamePassiveEvent e) {
 			ged.postEvent(listeners, (l) -> l.currentPlayerChanged(e));
 		}
 
 		@Override
-		public void gameStateChanged(GamePassiveEvent e) {
+		public synchronized void gameStateChanged(GamePassiveEvent e) {
 			ged.postEvent(listeners, (l) -> l.gameStateChanged(e));
 		}
 
 		@Override
-		public void playerCardCountChanged(GameQuantitativeEvent e, Player player) {
+		public synchronized void playerCardCountChanged(GameQuantitativeEvent e, Player player) {
 			System.err.println("  \033[31m+Card count changed\033[0m");
 			System.err.println("  \033[33m└─Event dispatched to " + listeners.size() + "\033[0m");
 			ged.postEvent(listeners, (l) -> l.playerCardCountChanged(e, player));
 		}
 
 		@Override
-		public void roundChanged(GameQuantitativeEvent e) {
+		public synchronized void roundChanged(GameQuantitativeEvent e) {
 			System.err.println("  \033[31m+Round changed\033[0m");
 			System.err.println("  \033[33m└─Event dispatched to " + listeners.size() + "\033[0m");
 			ged.postEvent(listeners, (l) -> l.roundChanged(e));
 		}
 
 		@Override
-		public void deckRefilled(Game game) {
+		public synchronized void deckRefilled(Game game) {
 			ged.postEvent(listeners, (l) -> l.deckRefilled(game));
 		}
 
 		@Override
-		public void deckSizeDecreased(GameQuantitativeEvent e) {
+		public synchronized void deckSizeDecreased(GameQuantitativeEvent e) {
 			ged.postEvent(listeners, (l) -> l.deckSizeDecreased(e));
 		}
 
 		@Override
-		public void pileSizeIncreased(GameQuantitativeEvent e) {
+		public synchronized void pileSizeIncreased(GameQuantitativeEvent e) {
 			ged.postEvent(listeners, (l) -> l.pileSizeIncreased(e));
 		}
 
