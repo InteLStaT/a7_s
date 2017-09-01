@@ -13,6 +13,9 @@ import org.ucoz.intelstat.gc.GCard;
 // FIXME: if you're looking for a bug, it's likely here
 public class GameRules {
 
+	public static final int UNDER_DRAW_MULTIPLIER = 2;
+	
+	
 	private GameRules() {
 	}
 
@@ -31,8 +34,8 @@ public class GameRules {
 		/*
 		 * If the game is currently in (either an ACE or UNDER) streak, only
 		 * these ranks can be placed. The streak's rank is the previous card's
-		 * rank. NOTE: by the following code, and rank can streak, not just ACE
-		 * or UNDER.
+		 * rank. NOTE: by the following code, any rank can streak, not just ACE
+		 * and UNDER.
 		 */
 		if (isStreak) {
 			if (nextCard.getRank() == prevCard.getRank()) {
@@ -40,9 +43,11 @@ public class GameRules {
 			}
 			return false;
 		}
+		// SEVENs can be put on anything (outside of streaks)
 		if (nextCard.getRank() == GCard.SEVEN) {
 			return true;
 		}
+		// General rule
 		if (prevCard.getRank() == nextCard.getRank() || prevCard.getSuit() == nextCard.getSuit()) {
 			return true;
 		}
@@ -60,4 +65,7 @@ public class GameRules {
 		return false;
 	}
 
+	public static int getUnderDrawAmount(int streak) {
+		return streak*UNDER_DRAW_MULTIPLIER;
+	}
 }
