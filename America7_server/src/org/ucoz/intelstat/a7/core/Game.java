@@ -24,7 +24,8 @@ import org.ucoz.intelstat.gc.GHand;
  *
  */
 // TODO: THROW EXCEPTIONS IN APPROPRIATE GETTERS IF THE GAME HASN'T STARTED
-// Now what's wrong with this class? Too many exceptions.
+// FIXME: Now what's wrong with this class? Too many exceptions.
+// FIXME: inconsistent usage of public/private getters and private fields
 public class Game {
 
 	private static final int AWAIT_GED_TIME = 500;
@@ -288,8 +289,16 @@ public class Game {
 			return ctrl.proposeCardWithSuit(hand.readonlyView(), getGame(), this, suit);
 		}
 
+		/**
+		 * Asks the controller for a suit because it put a SEVEN card before. In
+		 * case it returns null, a default value is used.
+		 * 
+		 * @return the suit asked for by the controller
+		 */
 		private GCard.Suit requestSuit() {
-			return ctrl.proposeSuit(hand.readonlyView(), getGame(), this);
+			GCard.Suit suit = ctrl.askForSuit(hand.readonlyView(), getGame(), this);
+			suit = suit != null ? suit : GCard.Suit.values()[0];
+			return suit;
 		}
 
 		private GHand getHand() {
@@ -354,55 +363,85 @@ public class Game {
 			 * REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE
 			 * CHECK BECAUSE NON-ENDING GAME
 			 */
+			// TODO: refactor with truth table
 			// Null signifies a draw because I can't be bothered
 			// with an other way of drawing honestly
 			while (true) {
 				// ask card until the player makes a valid move
 				while (!isValidMove) {
-					// SOMEONE BEFORE WAS ASKING FOR SUIT (= PUT SEVEN)
+					// SOMEONE BEFORE WAS ASKING FOR SUIT (= HAS PUT SEVEN)
 					if (isAskingSuit) {
 						proposedCard = curPlayer.requestCardWithSuit(askedSuit);
-						
+
 						if (proposedCard == null) {
 							setFlags(proposedCard);
 							draw(1);
 							isValidMove = true;
 						}
-						/*
-						 * // In case of SEVEN, change asked suit, null is
-						 * handled else if (proposedCard.getRank() ==
-						 * GCard.Rank.SEVEN) { putInPile(proposedCard);
-						 * 
-						 * askedSuit = curPlayer.requestSuit(); if (askedSuit ==
-						 * null) { askedSuit = GCard.Suit.values()[0];
-						 * isValidMove = true; } }
-						 */
-						// If none of the above, check if card has the asked suit
+
 						else if (GameRules.isValidAskedCard(proposedCard, askedSuit)) {
 							putInPile(proposedCard);
-							setFlags(proposedCard); // just in case
+							setFlags(proposedCard);
 							isValidMove = true;
 						}
 						// If that fails as well, comes the next iteration
 					} // end asking suit
 					else if (isAceStreak) {
-						
-					} else if (isUnderStreak) {
 						proposedCard = curPlayer.requestCard();
-						
-						if(proposedCard == null) {
+
+						if (proposedCard == null) {
 							setFlags(proposedCard);
-							draw(2*underStreak);
 							isValidMove = true;
 						}
-						
-						else if(GameRules.isValidMove(topCard, proposedCard, true)) {
+
+						else if (GameRules.isValidMove(topCard, proposedCard, true)) {
+							putInPile(proposedCard);
+							setFlags(proposedCard);
+						}
+					} // end ace streak
+					else if (isUnderStreak) {
+						proposedCard = curPlayer.requestCard();
+
+						if (proposedCard == null) {
+							setFlags(proposedCard);
+							draw(2 * underStreak);
+							isValidMove = true;
+						}
+
+						else if (GameRules.isValidMove(topCard, proposedCard, true)) {
+							putInPile(proposedCard);
+							setFlags(proposedCard);
+							isValidMove = true;
+						}
+					} // end under streak
+						// General
+					else {
+						proposedCard = curPlayer.requestCard();
+
+						if (proposedCard == null) {
+							setFlags(proposedCard);
+							draw(1);
+							isValidMove = true;
+						}
+
+						else if (GameRules.isValidMove(topCard, proposedCard, false)) {
 							putInPile(proposedCard);
 							setFlags(proposedCard);
 							isValidMove = true;
 						}
 					}
 				} // end loop valid move
+				isValidMove = false;
+				/*
+				 * This condition is checked once more outside the loop because
+				 * the current player might have put a SEVEN
+				 */
+				if (isAskingSuit) {
+					askedSuit = curPlayer.requestSuit();
+				}
+
+				curPlayerIdx = (curPlayerIdx + 1) % playerCount;
+				curPlayer = players[curPlayerIdx];
 			} // end game loop
 
 		} // end run
