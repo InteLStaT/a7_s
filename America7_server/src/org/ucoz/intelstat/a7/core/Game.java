@@ -1,15 +1,12 @@
 package org.ucoz.intelstat.a7.core;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.TimeUnit;
 
 import org.ucoz.intelstat.gc.GCard;
 import org.ucoz.intelstat.gc.GDeck;
 import org.ucoz.intelstat.gc.GHand;
-import org.ucoz.intelstat.gc.GCard.Rank;
 
 /**
  * Represents an America 7 card game. Players can join the game by creating an
@@ -27,6 +24,7 @@ import org.ucoz.intelstat.gc.GCard.Rank;
  *
  */
 // TODO: THROW EXCEPTIONS IN APPROPRIATE GETTERS IF THE GAME HASN'T STARTED
+// Now what's wrong with this class? Too many exceptions.
 public class Game {
 
 	private static final int AWAIT_GED_TIME = 500;
@@ -52,11 +50,13 @@ public class Game {
 	/**
 	 * The pile in which cards are put into by players. The top card is the one
 	 * which was put the last into the pile.
+	 * 
 	 * @see #topCard
 	 */
 	private List<GCard> pile;
 	/**
 	 * The top card in the pile.
+	 * 
 	 * @see #pile
 	 */
 	private GCard topCard;
@@ -167,8 +167,16 @@ public class Game {
 	}
 
 	public void start() throws IllegalGameStateException {
+		// make sure game hasn't started, enough players are there and they are
+		// all ready
 		if (getGameState() == GameState.PREGAME) {
 			if (playerCount >= MIN_PLAYER_COUNT && playerCount <= MAX_PLAYER_COUNT) {
+				for (Player player : getPlayers()) {
+					if (!player.isReady()) {
+						throw new IllegalGameStateException("At least one of the players is not ready", gameState);
+					}
+				}
+				// simply start the loop?
 				gameLoopThread.start();
 			} else {
 				throw new IllegalGameStateException("Player count isn't between allowed bounds");
@@ -237,6 +245,10 @@ public class Game {
 			ready = true;
 		}
 
+		public boolean isReady() {
+			return ready;
+		}
+
 		public Game getGame() {
 			return Game.this;
 		}
@@ -275,11 +287,11 @@ public class Game {
 		private GCard requestCardWithSuit(GCard.Suit suit) {
 			return ctrl.proposeCardWithSuit(hand.readonlyView(), getGame(), this, suit);
 		}
-		
-		private GCard.Suit requestSuit(){
+
+		private GCard.Suit requestSuit() {
 			return ctrl.proposeSuit(hand.readonlyView(), getGame(), this);
 		}
-		
+
 		private GHand getHand() {
 			return hand;
 		}
@@ -293,7 +305,6 @@ public class Game {
 	private class GameLoop implements Runnable, GameListener {
 
 		private int underStreak = 0;
-		private int aceStreak = 0;
 		private boolean isUnderStreak = false;
 		private boolean isAceStreak = false;
 		private boolean isAskingSuit;
@@ -319,7 +330,7 @@ public class Game {
 			// PLAYER SETUP
 			for (int i = 0; i < playerCount; i++) {
 				players[i].setIndex(i);
-				stock.dealTo(players[i].getHand(), 5);
+				stock.dealTo(players[i].getHand(), INITIAL_HAND_SIZE);
 			}
 
 			// GAME SETUP
@@ -339,35 +350,93 @@ public class Game {
 			/* EVENT */currentPlayerChanged(new GamePassiveEvent(Game.this, curPlayer, round, gameState, gameState));
 
 			// NOW THE REAL LOOP
-			// REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE CHECK BECAUSE NON-ENDING GAME
-			// REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE CHECK BECAUSE NON-ENDING GAME
-			// REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE CHECK BECAUSE NON-ENDING GAME
+			/*
+			 * REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE
+			 * CHECK BECAUSE NON-ENDING GAME
+			 */
+			// Null signifies a draw because I can't be bothered
+			// with an other way of drawing honestly
 			while (true) {
 				// ask card until the player makes a valid move
 				while (!isValidMove) {
+					// SOMEONE BEFORE WAS ASKING FOR SUIT (= PUT SEVEN)
 					if (isAskingSuit) {
 						proposedCard = curPlayer.requestCardWithSuit(askedSuit);
-						// Null signifies a draw because I can't be bothered with an other way of drawing honestly
-						if(proposedCard == null) {
-							stock.dealTo(curPlayer.getHand(), 1);
+						
+						if (proposedCard == null) {
+							setFlags(proposedCard);
+							draw(1);
 							isValidMove = true;
 						}
-						// In case of SEVEN, change asked suit, null is handled
-						else if(proposedCard.getRank() == GCard.Rank.SEVEN) {
-							askedSuit = curPlayer.requestSuit();
-							if(askedSuit == null) {
-								askedSuit = GCard.Suit.values()[0];
-								isValidMove = true;
-							}
-						}
+						/*
+						 * // In case of SEVEN, change asked suit, null is
+						 * handled else if (proposedCard.getRank() ==
+						 * GCard.Rank.SEVEN) { putInPile(proposedCard);
+						 * 
+						 * askedSuit = curPlayer.requestSuit(); if (askedSuit ==
+						 * null) { askedSuit = GCard.Suit.values()[0];
+						 * isValidMove = true; } }
+						 */
 						// If none of the above, check if card has the asked suit
-						else if(GameRules.isValidAskedCard(proposedCard, askedSuit)) {
+						else if (GameRules.isValidAskedCard(proposedCard, askedSuit)) {
+							putInPile(proposedCard);
+							setFlags(proposedCard); // just in case
 							isValidMove = true;
 						}
-					} // TODO: left off with wanting to do streaks
-				}
-			}
+						// If that fails as well, comes the next iteration
+					} // end asking suit
+					else if (isAceStreak) {
+						
+					} else if (isUnderStreak) {
+						proposedCard = curPlayer.requestCard();
+						
+						if(proposedCard == null) {
+							setFlags(proposedCard);
+							draw(2*underStreak);
+							isValidMove = true;
+						}
+						
+						else if(GameRules.isValidMove(topCard, proposedCard, true)) {
+							putInPile(proposedCard);
+							setFlags(proposedCard);
+							isValidMove = true;
+						}
+					}
+				} // end loop valid move
+			} // end game loop
 
+		} // end run
+
+		/**
+		 * Deals the specified number of cards to the current player.
+		 */
+		private void draw(int number) {
+			stock.dealTo(curPlayer.getHand(), number);
+		}
+
+		private void setFlags(GCard card) {
+			switch (card.getRank()) {
+			case UNDER:
+				isUnderStreak = true;
+				isAceStreak = false;
+				isAskingSuit = false;
+				break;
+			case ACE:
+				isAceStreak = true;
+				isUnderStreak = false;
+				isAskingSuit = false;
+				break;
+			case SEVEN:
+				isAskingSuit = true;
+				isUnderStreak = false;
+				isAceStreak = false;
+				break;
+			default:
+				isUnderStreak = false;
+				isAceStreak = false;
+				isAskingSuit = false;
+				break;
+			}
 		}
 
 		/************************
