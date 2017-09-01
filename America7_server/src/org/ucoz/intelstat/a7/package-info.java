@@ -1,5 +1,5 @@
 /**
- * Core classes for making an America 7 game possible. No networking done.
+ * Contains (will contain) everything for running America 7 on a server.
  * <p>The code is very badly commented.
  *
  * @author InteLStaT
