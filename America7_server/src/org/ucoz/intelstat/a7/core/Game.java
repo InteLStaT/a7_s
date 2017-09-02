@@ -414,6 +414,10 @@ public class Game {
 					} // end general
 				} // end loop valid move
 				isValidMove = false;
+				
+				if(proposedCard == null) {
+					/* EVENT */stockSizeDecreased(new GameQuantitativeEvent(Game.this, stock.getPreviousSize(), stock.getSize()));
+				}
 				/*
 				 * This condition is checked once more outside the loop because
 				 * the current player might have put a SEVEN
@@ -429,9 +433,12 @@ public class Game {
 
 				curPlayerIdx = (curPlayerIdx + 1) % playerCount;
 				curPlayer = players[curPlayerIdx];
+				
 				if(curPlayerIdx == 0) {
 					round++;
+					/* EVENT */roundChanged(new GameQuantitativeEvent(Game.this, round-1, round));
 				}
+				/* EVENT */currentPlayerChanged(new GamePassiveEvent(Game.this, curPlayer, round, gameState, gameState));
 				_awaitGED();
 			} // end game loop
 
@@ -442,6 +449,10 @@ public class Game {
 		 */
 		private void draw(int number) {
 			stock.dealTo(curPlayer.getHand(), number);
+		}
+		
+		private void replenishStock() {
+			// TODO: implement this
 		}
 		
 		private void putInPile(GCard card) {
