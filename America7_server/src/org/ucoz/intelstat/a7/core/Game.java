@@ -370,37 +370,9 @@ public class Game {
 				// ask card until the player makes a valid move
 				while (!isValidMove) {
 					
-					// The following looks like this:
-					/*
-					 * if condA
-					 *     request2
-					 *     if condB
-					 *         actionA
-					 *     elif condC
-					 *         actionB
-					 * elif condD
-					 *     request1
-					 *     if condB
-					 *         actionC
-					 *     elif condE
-					 *         actionB
-					 * elif condF
-					 *     request1
-					 *     if condB
-					 *         actionD
-					 *     elif condE
-					 *         actionB
-					 * else !condA && !condD && !condF
-					 *     if condB
-					 *          actionA
-					 *     elif condG
-					 *          actionB
-					 *         
-					 */
 					proposedCard = isAskingSuit ? curPlayer.requestCardWithSuit(askedSuit) : curPlayer.requestCard();
 					
 					if (isAskingSuit) {													// condA
-						proposedCard = curPlayer.requestCardWithSuit(askedSuit);		// request2
 
 						if (proposedCard == null) { 									// condB
 							setFlags(proposedCard);										// actionA
@@ -411,10 +383,8 @@ public class Game {
 						else if (GameRules.isValidAskedCard(proposedCard, askedSuit)) { // condC
 							validCardAction();
 						}
-						// If that fails as well, comes the next iteration
 					} // end asking suit
 					else if (isAceStreak) {												// condD
-						proposedCard = curPlayer.requestCard();							// request1
 
 						if (proposedCard == null) { 									// condB
 							setFlags(proposedCard);										// actionC
@@ -426,7 +396,6 @@ public class Game {
 						}
 					} // end ace streak
 					else if (isUnderStreak) {											// condF
-						proposedCard = curPlayer.requestCard();							// request1
 
 						if (proposedCard == null) {										// actionD
 							setFlags(proposedCard);
@@ -438,9 +407,8 @@ public class Game {
 							validCardAction();
 						}
 					} // end under streak
-						// General
+					// General
 					else {
-						proposedCard = curPlayer.requestCard();							// request1
 
 						if (proposedCard == null) { 									// condB
 							setFlags(proposedCard);										// actionA
@@ -451,7 +419,7 @@ public class Game {
 						else if (GameRules.isValidMove(topCard, proposedCard, false)) {	// condG
 							validCardAction();
 						}
-					}
+					} // end general
 				} // end loop valid move
 				isValidMove = false;
 				/*
