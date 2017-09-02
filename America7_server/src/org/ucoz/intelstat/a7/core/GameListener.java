@@ -12,6 +12,6 @@ public interface GameListener {
 	void playerCardCountChanged(GameQuantitativeEvent e, Player player);
 	void roundChanged(GameQuantitativeEvent e);
 	void deckRefilled(Game game);
-	void deckSizeDecreased(GameQuantitativeEvent e);
+	void stockSizeDecreased(GameQuantitativeEvent e);
 	void pileSizeIncreased(GameQuantitativeEvent e);
 }
