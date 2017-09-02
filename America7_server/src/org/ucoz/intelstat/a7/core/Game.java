@@ -28,7 +28,7 @@ import org.ucoz.intelstat.gc.GHand;
 // FIXME: inconsistent usage of public/private getters and private fields
 public class Game {
 
-	private static final int AWAIT_GED_TIME = 500;
+	private static final int AWAIT_GED_TIME = 100;
 
 	public static final int INITIAL_HAND_SIZE = 5;
 	public static final int MIN_PLAYER_COUNT = 2;
@@ -369,65 +369,87 @@ public class Game {
 			while (true) {
 				// ask card until the player makes a valid move
 				while (!isValidMove) {
-					// SOMEONE BEFORE WAS ASKING FOR SUIT (= HAS PUT SEVEN)
-					if (isAskingSuit) {
-						proposedCard = curPlayer.requestCardWithSuit(askedSuit);
+					
+					// The following looks like this:
+					/*
+					 * if condA
+					 *     request2
+					 *     if condB
+					 *         actionA
+					 *     elif condC
+					 *         actionB
+					 * elif condD
+					 *     request1
+					 *     if condB
+					 *         actionC
+					 *     elif condE
+					 *         actionB
+					 * elif condF
+					 *     request1
+					 *     if condB
+					 *         actionD
+					 *     elif condE
+					 *         actionB
+					 * else !condA && !condD && !condF
+					 *     if condB
+					 *          actionA
+					 *     elif condG
+					 *          actionB
+					 *         
+					 */
+					proposedCard = isAskingSuit ? curPlayer.requestCardWithSuit(askedSuit) : curPlayer.requestCard();
+					
+					if (isAskingSuit) {													// condA
+						proposedCard = curPlayer.requestCardWithSuit(askedSuit);		// request2
 
-						if (proposedCard == null) {
-							setFlags(proposedCard);
+						if (proposedCard == null) { 									// condB
+							setFlags(proposedCard);										// actionA
 							draw(1);
 							isValidMove = true;
 						}
 
-						else if (GameRules.isValidAskedCard(proposedCard, askedSuit)) {
-							putInPile(proposedCard);
-							setFlags(proposedCard);
-							isValidMove = true;
+						else if (GameRules.isValidAskedCard(proposedCard, askedSuit)) { // condC
+							validCardAction();
 						}
 						// If that fails as well, comes the next iteration
 					} // end asking suit
-					else if (isAceStreak) {
-						proposedCard = curPlayer.requestCard();
+					else if (isAceStreak) {												// condD
+						proposedCard = curPlayer.requestCard();							// request1
 
-						if (proposedCard == null) {
-							setFlags(proposedCard);
+						if (proposedCard == null) { 									// condB
+							setFlags(proposedCard);										// actionC
 							isValidMove = true;
 						}
 
-						else if (GameRules.isValidMove(topCard, proposedCard, true)) {
-							putInPile(proposedCard);
-							setFlags(proposedCard);
+						else if (GameRules.isValidMove(topCard, proposedCard, true)) {	// condE
+							validCardAction();
 						}
 					} // end ace streak
-					else if (isUnderStreak) {
-						proposedCard = curPlayer.requestCard();
+					else if (isUnderStreak) {											// condF
+						proposedCard = curPlayer.requestCard();							// request1
 
-						if (proposedCard == null) {
+						if (proposedCard == null) {										// actionD
 							setFlags(proposedCard);
-							draw(2 * underStreak);
+							draw(GameRules.getUnderDrawAmount(underStreak));
 							isValidMove = true;
 						}
 
-						else if (GameRules.isValidMove(topCard, proposedCard, true)) {
-							putInPile(proposedCard);
-							setFlags(proposedCard);
-							isValidMove = true;
+						else if (GameRules.isValidMove(topCard, proposedCard, true)) {	// condE
+							validCardAction();
 						}
 					} // end under streak
 						// General
 					else {
-						proposedCard = curPlayer.requestCard();
+						proposedCard = curPlayer.requestCard();							// request1
 
-						if (proposedCard == null) {
-							setFlags(proposedCard);
+						if (proposedCard == null) { 									// condB
+							setFlags(proposedCard);										// actionA
 							draw(1);
 							isValidMove = true;
 						}
 
-						else if (GameRules.isValidMove(topCard, proposedCard, false)) {
-							putInPile(proposedCard);
-							setFlags(proposedCard);
-							isValidMove = true;
+						else if (GameRules.isValidMove(topCard, proposedCard, false)) {	// condG
+							validCardAction();
 						}
 					}
 				} // end loop valid move
@@ -436,12 +458,21 @@ public class Game {
 				 * This condition is checked once more outside the loop because
 				 * the current player might have put a SEVEN
 				 */
+				if(curPlayer.getCardCount() == 0) {
+					winner = curPlayer;
+					break;
+				}
+				// TODO: bringback conditions can be implemented here, if needed. If so, modify the above code.
 				if (isAskingSuit) {
 					askedSuit = curPlayer.requestSuit();
 				}
 
 				curPlayerIdx = (curPlayerIdx + 1) % playerCount;
 				curPlayer = players[curPlayerIdx];
+				if(curPlayerIdx == 0) {
+					round++;
+				}
+				_awaitGED();
 			} // end game loop
 
 		} // end run
@@ -453,6 +484,12 @@ public class Game {
 			stock.dealTo(curPlayer.getHand(), number);
 		}
 
+		private void validCardAction() {
+			putInPile(proposedCard);									// actionB
+			setFlags(proposedCard);
+			isValidMove = true;
+		}
+		
 		private void setFlags(GCard card) {
 			switch (card.getRank()) {
 			case UNDER:
