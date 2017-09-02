@@ -187,10 +187,6 @@ public class Game {
 		}
 	}
 
-	private void putInPile(GCard card) {
-		pile.add(card);
-	}
-
 	private void setGameState(GameState state) {
 		gameState = state;
 	}
@@ -375,9 +371,8 @@ public class Game {
 					if (isAskingSuit) {													// condA
 
 						if (proposedCard == null) { 									// condB
-							setFlags(proposedCard);										// actionA
+							validate();													// actionA
 							draw(1);
-							isValidMove = true;
 						}
 
 						else if (GameRules.isValidAskedCard(proposedCard, askedSuit)) { // condC
@@ -387,8 +382,7 @@ public class Game {
 					else if (isAceStreak) {												// condD
 
 						if (proposedCard == null) { 									// condB
-							setFlags(proposedCard);										// actionC
-							isValidMove = true;
+							validate();
 						}
 
 						else if (GameRules.isValidMove(topCard, proposedCard, true)) {	// condE
@@ -398,9 +392,8 @@ public class Game {
 					else if (isUnderStreak) {											// condF
 
 						if (proposedCard == null) {										// actionD
-							setFlags(proposedCard);
+							validate();
 							draw(GameRules.getUnderDrawAmount(underStreak));
-							isValidMove = true;
 						}
 
 						else if (GameRules.isValidMove(topCard, proposedCard, true)) {	// condE
@@ -411,9 +404,8 @@ public class Game {
 					else {
 
 						if (proposedCard == null) { 									// condB
-							setFlags(proposedCard);										// actionA
+							validate();													// actionA
 							draw(1);
-							isValidMove = true;
 						}
 
 						else if (GameRules.isValidMove(topCard, proposedCard, false)) {	// condG
@@ -451,9 +443,18 @@ public class Game {
 		private void draw(int number) {
 			stock.dealTo(curPlayer.getHand(), number);
 		}
+		
+		private void putInPile(GCard card) {
+			pile.add(card);
+			/* EVENT */pileSizeIncreased(new GameQuantitativeEvent(Game.this, pile.size()-1, pile.size()));
+		}
 
 		private void validCardAction() {
 			putInPile(proposedCard);									// actionB
+			validate();
+		}
+		
+		private void validate() {
 			setFlags(proposedCard);
 			isValidMove = true;
 		}
@@ -528,8 +529,8 @@ public class Game {
 		}
 
 		@Override
-		public synchronized void deckSizeDecreased(GameQuantitativeEvent e) {
-			ged.postEvent(listeners, (l) -> l.deckSizeDecreased(e));
+		public synchronized void stockSizeDecreased(GameQuantitativeEvent e) {
+			ged.postEvent(listeners, (l) -> l.stockSizeDecreased(e));
 		}
 
 		@Override
