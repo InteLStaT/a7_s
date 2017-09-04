@@ -1,6 +1,7 @@
 package org.ucoz.intelstat.a7.core;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -11,12 +12,12 @@ import org.ucoz.intelstat.gc.GHand;
 /**
  * Represents an America 7 card game. Players can join the game by creating an
  * instance of the nested class {@code Player}. A game can have anywhere from 2
- * to 6 players, although 5- or 6-player games are considered non-standard.
+ * to 4 players.
  * <h1>Constitution of a game</h1>
  * <ul>
  * <li>a deck of German playing cards as defined {@link GCard here}
- * <li>2 to 6 players arranged in a circle
- * <li>the top card with a pile of previous top cards
+ * <li>2 to 4 players arranged in a circle
+ * <li>the top card along with a pile of previous top cards
  * </ul>
  * For the rules of the game, see {@link GameRules}.
  * 
@@ -32,7 +33,7 @@ public class Game {
 
 	public static final int INITIAL_HAND_SIZE = 5;
 	public static final int MIN_PLAYER_COUNT = 2;
-	public static final int MAX_PLAYER_COUNT = 6;
+	public static final int MAX_PLAYER_COUNT = 4;
 	private static final IllegalGameStateException PREGAME_EXCEPTION = new IllegalGameStateException(
 			"The game hasn't started yet", GameState.PREGAME);
 	private static final IllegalGameStateException INGAME_EXCEPTION = new IllegalGameStateException(
@@ -82,7 +83,8 @@ public class Game {
 	 * 
 	 * @see Game#curPlayer
 	 */
-	private int curPlayerIdx;
+	// It's set to -1 for GameLoop.advancePlayer(). Refactor if ugly.
+	private int curPlayerIdx = -1;
 	/**
 	 * Winner of the game.
 	 */
@@ -109,7 +111,7 @@ public class Game {
 	}
 
 	public Game() {
-		players = new Player[6];
+		players = new Player[MAX_PLAYER_COUNT];
 		stock = GDeck.shuffledDeck();
 		pile = new ArrayList<>(32);
 		gameLoopThread = new Thread(gameLoop = new GameLoop());
@@ -142,11 +144,11 @@ public class Game {
 	}
 
 	/**
-	 * Returns the deck's size from which cards are drawn by players. A value of
-	 * 32 indicates the game hasn't started yet.
+	 * Returns the stock's size from which cards are drawn by players. A value
+	 * of 32 indicates the game hasn't started yet.
 	 */
 	// TODO: check pregame exception or not? if yes, remove doc
-	public int getDrawDeckSize() {
+	public int getStockSize() {
 		return stock.getSize();
 	}
 
@@ -155,8 +157,10 @@ public class Game {
 		return topCard;
 	}
 
-	public int getRound() throws IllegalGameStateException {
-		_checkPregameException();
+	/**
+	 * @return the current round, or 0 if the game hasn't started yet
+	 */
+	public int getRound() {
 		return round;
 	}
 
@@ -278,11 +282,23 @@ public class Game {
 		}
 
 		private GCard requestCard() {
-			return ctrl.proposeCard(hand.readonlyView(), getGame(), this);
+			try {
+				return ctrl.proposeCard(hand.readonlyView(), getGame(), this);
+			} catch (Throwable t) {
+				System.err.println(
+						"Threw in proposeCard() by player #" + getIndex() + " " + getName() + ", " + toString());
+				return null;
+			}
 		}
 
 		private GCard requestCardWithSuit(GCard.Suit suit) {
-			return ctrl.proposeCardWithSuit(hand.readonlyView(), getGame(), this, suit);
+			try {
+				return ctrl.proposeCardWithSuit(hand.readonlyView(), getGame(), this, suit);
+			} catch (Throwable t) {
+				System.err.println("Threw in proposeCardWithSuit() by player #" + getIndex() + " " + getName() + ", "
+						+ toString());
+				return null;
+			}
 		}
 
 		/**
@@ -292,9 +308,15 @@ public class Game {
 		 * @return the suit asked for by the controller
 		 */
 		private GCard.Suit requestSuit() {
-			GCard.Suit suit = ctrl.askForSuit(hand.readonlyView(), getGame(), this);
-			suit = suit != null ? suit : GCard.Suit.values()[0];
-			return suit;
+			try {
+				GCard.Suit suit = ctrl.askForSuit(hand.readonlyView(), getGame(), this);
+				suit = suit != null ? suit : GCard.Suit.values()[0];
+				return suit;
+			} catch (Throwable t) {
+				System.err.println(
+						"Threw in askForCard() by player #" + getIndex() + " " + getName() + ", " + toString());
+				return null;
+			}
 		}
 
 		private GHand getHand() {
@@ -320,7 +342,6 @@ public class Game {
 		/***************
 		 * GAME LOOP *
 		 ***************/
-		// TODO: still mess, but more mess. please make less mess.
 		public void run() {
 
 			// RANDOMIZE PLAYERS
@@ -349,127 +370,148 @@ public class Game {
 			// Pause for a second... no way the game is already starting!
 			_sleep(1000);
 
-			// Set up first player
-			curPlayer = getPlayers()[0];
-			curPlayerIdx = curPlayer.getIndex();
-			/* EVENT */currentPlayerChanged(new GamePassiveEvent(Game.this, curPlayer, round, gameState, gameState));
+			// First player
+			advancePlayer();
 
 			// NOW THE REAL LOOP
 			/*
 			 * REALLY IMPORTANT TODO MUST DO TIMEOUT CHECK NOT JUST VALID MOVE
 			 * CHECK BECAUSE NON-ENDING GAME
 			 */
-			// TODO: refactor with truth table
 			// Null signifies a draw because I can't be bothered
-			// with an other way of drawing honestly
+			// with an other way of drawing honestly.
+			// "Make a custom card that signifies a draw" - that's the same
+			// thing as using null, apart from having a proper name. But
+			// since I explained what null means, you don't need it.
+			/*
+			 * Cheat prevention considerations: - cap the number of cards that
+			 * can be drawn consecutively, if the player has a valid card to put
+			 * - obviously set max response time (timeout)
+			 */
 			while (true) {
-				// ask card until the player makes a valid move
+				// request card until the player makes a valid move
 				while (!isValidMove) {
-					
+
 					proposedCard = isAskingSuit ? curPlayer.requestCardWithSuit(askedSuit) : curPlayer.requestCard();
-					
-					if (isAskingSuit) {													// condA
 
-						if (proposedCard == null) { 									// condB
-							validate();													// actionA
+					if (isAskingSuit) {
+						if (proposedCard == null) {
+							validate();
 							draw(1);
-						}
-
-						else if (GameRules.isValidAskedCard(proposedCard, askedSuit)) { // condC
-							validCardAction();
+						} else if (GameRules.isValidAskedCard(proposedCard, askedSuit)) {
+							validate();
+							putInPile(proposedCard);
 						}
 					} // end asking suit
-					else if (isAceStreak) {												// condD
-
-						if (proposedCard == null) { 									// condB
+					else if (isAceStreak) {
+						if (proposedCard == null) {
 							validate();
-						}
-
-						else if (GameRules.isValidMove(topCard, proposedCard, true)) {	// condE
-							validCardAction();
+						} else if (GameRules.isValidMove(topCard, proposedCard, true)) {
+							validate();
+							putInPile(proposedCard);
 						}
 					} // end ace streak
-					else if (isUnderStreak) {											// condF
-
-						if (proposedCard == null) {										// actionD
+					else if (isUnderStreak) {
+						if (proposedCard == null) {
 							validate();
 							draw(GameRules.getUnderDrawAmount(underStreak));
-						}
-
-						else if (GameRules.isValidMove(topCard, proposedCard, true)) {	// condE
-							validCardAction();
+						} else if (GameRules.isValidMove(topCard, proposedCard, true)) {
+							validate();
+							putInPile(proposedCard);
 						}
 					} // end under streak
-					// General
+						// General
 					else {
-
-						if (proposedCard == null) { 									// condB
-							validate();													// actionA
+						if (proposedCard == null) {
+							validate();
 							draw(1);
-						}
-
-						else if (GameRules.isValidMove(topCard, proposedCard, false)) {	// condG
-							validCardAction();
+						} else if (GameRules.isValidMove(topCard, proposedCard, false)) {
+							validate();
+							putInPile(proposedCard);
 						}
 					} // end general
 				} // end loop valid move
+
 				isValidMove = false;
-				
-				if(proposedCard == null) {
-					/* EVENT */stockSizeDecreased(new GameQuantitativeEvent(Game.this, stock.getPreviousSize(), stock.getSize()));
-				}
+				proposedCard = null;
+
 				/*
 				 * This condition is checked once more outside the loop because
 				 * the current player might have put a SEVEN
 				 */
-				if(curPlayer.getCardCount() == 0) {
+				if (curPlayer.getCardCount() == 0) {
 					winner = curPlayer;
 					break;
 				}
-				// TODO: bringback conditions can be implemented here, if needed. If so, modify the above code.
+				// TODO: bringback conditions can be implemented here, if
+				// needed. If so, modify the above code for win condition.
 				if (isAskingSuit) {
 					askedSuit = curPlayer.requestSuit();
 				}
 
-				curPlayerIdx = (curPlayerIdx + 1) % playerCount;
-				curPlayer = players[curPlayerIdx];
-				
-				if(curPlayerIdx == 0) {
-					round++;
-					/* EVENT */roundChanged(new GameQuantitativeEvent(Game.this, round-1, round));
-				}
-				/* EVENT */currentPlayerChanged(new GamePassiveEvent(Game.this, curPlayer, round, gameState, gameState));
+				advancePlayer();
+
 				_awaitGED();
 			} // end game loop
 
 		} // end run
 
 		/**
-		 * Deals the specified number of cards to the current player.
+		 * THE FOLLOWING METHODS WORK WITH THE STATE OF ONE ITERATION OF THE GAME LOOP.
 		 */
+		
+		/**
+		 * Deals the specified number of cards to the current player. If needed,
+		 * the stock is refilled with the pile.
+		 */
+		// FIXME: this method generates too many events
 		private void draw(int number) {
-			stock.dealTo(curPlayer.getHand(), number);
-		}
-		
-		private void replenishStock() {
-			// TODO: implement this
-		}
-		
-		private void putInPile(GCard card) {
-			pile.add(card);
-			/* EVENT */pileSizeIncreased(new GameQuantitativeEvent(Game.this, pile.size()-1, pile.size()));
+			if (number <= stock.getSize()) {
+				stock.dealTo(curPlayer.getHand(), number);
+				/* EVENT */stockSizeDecreased(
+						new GameQuantitativeEvent(Game.this, stock.getPreviousSize(), stock.getSize()));
+				if (stock.isEmpty()) {
+					refillStock(); // make sure stock is never left empty
+				}
+			} else {
+				int deltaCardsToDeal = number - stock.getSize();
+				stock.dealTo(curPlayer.getHand(), stock.getSize());
+				/* EVENT */stockSizeDecreased(
+						new GameQuantitativeEvent(Game.this, stock.getPreviousSize(), stock.getSize()));
+				refillStock();
+				stock.dealTo(curPlayer.getHand(), deltaCardsToDeal);
+				/* EVENT */stockSizeDecreased(
+						new GameQuantitativeEvent(Game.this, stock.getPreviousSize(), stock.getSize()));
+			}
+			/* EVENT */playerCardCountChanged(
+					new GameQuantitativeEvent(Game.this, curPlayer.getCardCount() - number, curPlayer.getCardCount()),
+					curPlayer);
 		}
 
-		private void validCardAction() {
-			putInPile(proposedCard);									// actionB
-			validate();
+		/**
+		 * Refills the stock from the pile.
+		 */
+		private void refillStock() {
+			pile.remove(pile.size() - 1); // the top card doesn't go into the
+											// new stock
+			Collections.reverse(pile); // turns the pile face down basically
+			stock = GDeck.customDeck(pile);
+			pile.clear();
+			pile.add(topCard);
+			// but it needs to be added back to the pile
+			/* EVENT */stockRefilled(Game.this);
 		}
-		
+
+		private void putInPile(GCard card) {
+			pile.add(card);
+			/* EVENT */pileSizeIncreased(new GameQuantitativeEvent(Game.this, pile.size() - 1, pile.size()));
+		}
+
 		private void validate() {
 			setFlags(proposedCard);
 			isValidMove = true;
 		}
-		
+
 		private void setFlags(GCard card) {
 			switch (card.getRank()) {
 			case UNDER:
@@ -493,6 +535,17 @@ public class Game {
 				isAskingSuit = false;
 				break;
 			}
+		}
+
+		private void advancePlayer() {
+			curPlayerIdx = (curPlayerIdx + 1) % playerCount;
+			curPlayer = players[curPlayerIdx];
+
+			if (curPlayerIdx == 0) {
+				round++;
+				/* EVENT */roundChanged(new GameQuantitativeEvent(Game.this, round - 1, round));
+			}
+			/* EVENT */currentPlayerChanged(new GamePassiveEvent(Game.this, curPlayer, round, gameState, gameState));
 		}
 
 		/************************
@@ -535,8 +588,8 @@ public class Game {
 		}
 
 		@Override
-		public synchronized void deckRefilled(Game game) {
-			ged.postEvent(listeners, (l) -> l.deckRefilled(game));
+		public synchronized void stockRefilled(Game game) {
+			ged.postEvent(listeners, (l) -> l.stockRefilled(game));
 		}
 
 		@Override
