@@ -518,21 +518,25 @@ public class Game {
 				isUnderStreak = true;
 				isAceStreak = false;
 				isAskingSuit = false;
+				underStreak++;
 				break;
 			case ACE:
 				isAceStreak = true;
 				isUnderStreak = false;
 				isAskingSuit = false;
+				underStreak = 0;
 				break;
 			case SEVEN:
 				isAskingSuit = true;
 				isUnderStreak = false;
 				isAceStreak = false;
+				underStreak = 0;
 				break;
 			default:
 				isUnderStreak = false;
 				isAceStreak = false;
 				isAskingSuit = false;
+				underStreak = 0;
 				break;
 			}
 		}
