@@ -41,17 +41,18 @@ public class GameRules {
 			if (nextCard.getRank() == prevCard.getRank()) {
 				return true;
 			}
+			System.err.println("INVALID MOVE IN STREAK");
 			return false;
 		}
 		// SEVENs can be put on anything (outside of streaks)
-		if (nextCard.getRank() == GCard.SEVEN) {
+		if (nextCard.getRank() == GCard.Rank.SEVEN) {
 			return true;
 		}
 		// General rule
 		if (prevCard.getRank() == nextCard.getRank() || prevCard.getSuit() == nextCard.getSuit()) {
 			return true;
 		}
-
+		System.err.println("INVALID MOVE IN GENERAL");
 		return false;
 	}
 
@@ -62,6 +63,7 @@ public class GameRules {
 		if (card.getRank() == GCard.Rank.SEVEN) {
 			return true;
 		}
+		System.err.println("INVALID MOVE IN ASKED CARD");
 		return false;
 	}
 
