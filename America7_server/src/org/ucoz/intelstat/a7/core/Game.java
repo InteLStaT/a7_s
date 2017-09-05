@@ -53,15 +53,8 @@ public class Game {
 	 * The pile in which cards are put into by players. The top card is the one
 	 * which was put the last into the pile.
 	 * 
-	 * @see #topCard
 	 */
 	private List<GCard> pile;
-	/**
-	 * The top card in the pile.
-	 * 
-	 * @see #pile
-	 */
-	private GCard topCard;
 
 	/**
 	 * Current state of the game.
@@ -154,7 +147,7 @@ public class Game {
 
 	public GCard getTopCard() throws IllegalGameStateException {
 		_checkPregameException();
-		return topCard;
+		return pile.get(pile.size() - 1);
 	}
 
 	/**
@@ -287,6 +280,7 @@ public class Game {
 			} catch (Throwable t) {
 				System.err.println(
 						"Threw in proposeCard() by player #" + getIndex() + " " + getName() + ", " + toString());
+				t.printStackTrace();
 				return null;
 			}
 		}
@@ -297,6 +291,7 @@ public class Game {
 			} catch (Throwable t) {
 				System.err.println("Threw in proposeCardWithSuit() by player #" + getIndex() + " " + getName() + ", "
 						+ toString());
+				t.printStackTrace();
 				return null;
 			}
 		}
@@ -315,6 +310,7 @@ public class Game {
 			} catch (Throwable t) {
 				System.err.println(
 						"Threw in askForCard() by player #" + getIndex() + " " + getName() + ", " + toString());
+				t.printStackTrace();
 				return null;
 			}
 		}
@@ -360,8 +356,7 @@ public class Game {
 			}
 
 			// GAME SETUP
-			topCard = stock.dealCard();
-			putInPile(topCard);
+			pile.add(stock.dealCard());
 
 			setGameState(GameState.INGAME);
 			/* EVENT */gameLoop
@@ -390,44 +385,46 @@ public class Game {
 			 */
 			while (true) {
 				// request card until the player makes a valid move
+				// Do NOT call validate() first. It calls setFlags() which
+				// resets the state, which we don't want before drawing.
 				while (!isValidMove) {
 
 					proposedCard = isAskingSuit ? curPlayer.requestCardWithSuit(askedSuit) : curPlayer.requestCard();
 
 					if (isAskingSuit) {
 						if (proposedCard == null) {
-							validate();
 							draw(1);
-						} else if (GameRules.isValidAskedCard(proposedCard, askedSuit)) {
 							validate();
+						} else if (GameRules.isValidAskedCard(proposedCard, askedSuit)) {
 							putInPile(proposedCard);
+							validate();
 						}
 					} // end asking suit
 					else if (isAceStreak) {
 						if (proposedCard == null) {
 							validate();
-						} else if (GameRules.isValidMove(topCard, proposedCard, true)) {
-							validate();
+						} else if (GameRules.isValidMove(getTopCard(), proposedCard, true)) {
 							putInPile(proposedCard);
+							validate();
 						}
 					} // end ace streak
 					else if (isUnderStreak) {
 						if (proposedCard == null) {
-							validate();
 							draw(GameRules.getUnderDrawAmount(underStreak));
-						} else if (GameRules.isValidMove(topCard, proposedCard, true)) {
 							validate();
+						} else if (GameRules.isValidMove(getTopCard(), proposedCard, true)) {
 							putInPile(proposedCard);
+							validate();
 						}
 					} // end under streak
 						// General
 					else {
 						if (proposedCard == null) {
-							validate();
 							draw(1);
-						} else if (GameRules.isValidMove(topCard, proposedCard, false)) {
 							validate();
+						} else if (GameRules.isValidMove(getTopCard(), proposedCard, false)) {
 							putInPile(proposedCard);
+							validate();
 						}
 					} // end general
 				} // end loop valid move
@@ -441,11 +438,14 @@ public class Game {
 				 */
 				if (curPlayer.getCardCount() == 0) {
 					winner = curPlayer;
+					setGameState(GameState.POSTGAME);
+					/* EVENT */gameStateChanged(
+							new GamePassiveEvent(Game.this, curPlayer, round, GameState.INGAME, getGameState()));
 					break;
 				}
 				// TODO: bringback conditions can be implemented here, if
 				// needed. If so, modify the above code for win condition.
-				if (isAskingSuit) {
+				if (isAskingSuit && askedSuit == null) {
 					askedSuit = curPlayer.requestSuit();
 				}
 
@@ -493,8 +493,9 @@ public class Game {
 		 * Refills the stock from the pile.
 		 */
 		private void refillStock() {
-			pile.remove(pile.size() - 1); // the top card doesn't go into the
-											// new stock
+			// the top card doesn't go into the new stock
+			GCard topCard = pile.remove(pile.size() - 1);
+			// new stock
 			Collections.reverse(pile); // turns the pile face down basically
 			stock = GDeck.customDeck(pile);
 			pile.clear();
@@ -505,6 +506,10 @@ public class Game {
 
 		private void putInPile(GCard card) {
 			pile.add(card);
+			curPlayer.getHand().removeCard(card);
+			/* EVENT */playerCardCountChanged(
+					new GameQuantitativeEvent(Game.this, curPlayer.getCardCount() + 1, curPlayer.getCardCount()),
+					curPlayer);
 			/* EVENT */pileSizeIncreased(new GameQuantitativeEvent(Game.this, pile.size() - 1, pile.size()));
 		}
 
@@ -514,18 +519,29 @@ public class Game {
 		}
 
 		private void setFlags(GCard card) {
+			if (card == null) {
+				if (isAceStreak || isUnderStreak) {
+					isAceStreak = false;
+					isUnderStreak = false;
+					underStreak = 0;
+					askedSuit = null;
+				}
+				return;
+			}
 			switch (card.getRank()) {
 			case UNDER:
 				isUnderStreak = true;
 				isAceStreak = false;
 				isAskingSuit = false;
 				underStreak++;
+				askedSuit = null;
 				break;
 			case ACE:
 				isAceStreak = true;
 				isUnderStreak = false;
 				isAskingSuit = false;
 				underStreak = 0;
+				askedSuit = null;
 				break;
 			case SEVEN:
 				isAskingSuit = true;
@@ -538,6 +554,7 @@ public class Game {
 				isAceStreak = false;
 				isAskingSuit = false;
 				underStreak = 0;
+				askedSuit = null;
 				break;
 			}
 		}
