@@ -176,8 +176,8 @@ public class Game {
 		// all ready
 		if (getGameState() == GameState.PREGAME) {
 			if (playerCount >= MIN_PLAYER_COUNT && playerCount <= MAX_PLAYER_COUNT) {
-				for (Player player : getPlayers()) {
-					if (!player.isReady()) {
+				for (int i = 0; i < playerCount; i++) {
+					if (!players[i].isReady()) {
 						throw new IllegalGameStateException("At least one of the players is not ready", gameState);
 					}
 				}
@@ -457,9 +457,10 @@ public class Game {
 		} // end run
 
 		/**
-		 * THE FOLLOWING METHODS WORK WITH THE STATE OF ONE ITERATION OF THE GAME LOOP.
+		 * THE FOLLOWING METHODS WORK WITH THE STATE OF ONE ITERATION OF THE
+		 * GAME LOOP.
 		 */
-		
+
 		/**
 		 * Deals the specified number of cards to the current player. If needed,
 		 * the stock is refilled with the pile.
