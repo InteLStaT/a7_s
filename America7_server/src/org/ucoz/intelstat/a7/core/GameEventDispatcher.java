@@ -9,6 +9,10 @@ public class GameEventDispatcher extends Thread {
 
 	private BlockingQueue<Runnable> events = new ArrayBlockingQueue<>(128);
 
+	public GameEventDispatcher() {
+		setDaemon(true);
+	}
+	
 	public void run() {
 		while (true) {
 			try {
