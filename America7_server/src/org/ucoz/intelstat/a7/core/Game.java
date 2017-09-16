@@ -329,14 +329,14 @@ public class Game {
 
 	}
 
-	private int underStreak = 0;
-	private boolean isUnderStreak = false;
-	private boolean isAceStreak = false;
-	private boolean isAskingSuit;
-	private boolean hasToAskSuit;
-	private boolean isValidMove = false;
-	private GCard proposedCard = null;
-	private GCard.Suit askedSuit = null;
+	protected int underStreak = 0;
+	protected boolean isUnderStreak = false;
+	protected boolean isAceStreak = false;
+	protected boolean isAskingSuit;
+	protected boolean hasToAskSuit;
+	protected boolean isValidMove = false;
+	protected GCard proposedCard = null;
+	protected GCard.Suit askedSuit = null;
 
 	public boolean isUnderStreak() {
 		return isUnderStreak;
@@ -354,12 +354,17 @@ public class Game {
 		return isAskingSuit;
 	}
 
-	public GCard.Suit getAskedSuit() {
+	public GCard.Suit getAskedSuit() throws IllegalStateException {
+		if (!isAskingSuit()) {
+			throw new IllegalStateException("not asking suit");
+		}
 		return askedSuit;
 	}
 
 	// TODO: disable reflection.
-	private class GameLoop implements Runnable, GameListener {
+	// Implements GameListener so one can conveniently fire events,
+	// not in the best way though. But that's a problem for GED.
+	class GameLoop implements Runnable, GameListener {
 
 		/***************
 		 * GAME LOOP *
@@ -411,7 +416,7 @@ public class Game {
 			 */
 			while (true) {
 				// request card until the player makes a valid move
-				// Do NOT call validate() first. It calls setFlags() which
+				// Do not call validate() first. It calls setFlags() which
 				// resets the state, which we don't want before drawing.
 				while (!isValidMove) {
 
@@ -443,7 +448,7 @@ public class Game {
 							validate();
 						}
 					} // end under streak
-					// General
+						// General
 					else {
 						if (proposedCard == null) {
 							draw(1);
