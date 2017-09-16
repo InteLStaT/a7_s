@@ -333,6 +333,7 @@ public class Game {
 	private boolean isUnderStreak = false;
 	private boolean isAceStreak = false;
 	private boolean isAskingSuit;
+	private boolean hasToAskSuit;
 	private boolean isValidMove = false;
 	private GCard proposedCard = null;
 	private GCard.Suit askedSuit = null;
@@ -340,26 +341,23 @@ public class Game {
 	public boolean isUnderStreak() {
 		return isUnderStreak;
 	}
-	
+
 	public int getUnderStreak() {
 		return underStreak;
 	}
-	
+
 	public boolean isAceStreak() {
 		return isAceStreak;
 	}
-	
+
 	public boolean isAskingSuit() {
 		return isAskingSuit;
 	}
-	
+
 	public GCard.Suit getAskedSuit() {
 		return askedSuit;
 	}
-	
-	// I very much like public interface methods. Not like anybody's gonna get
-	// access to it.
-	// I will disable reflection anyways.
+
 	// TODO: disable reflection.
 	private class GameLoop implements Runnable, GameListener {
 
@@ -445,7 +443,7 @@ public class Game {
 							validate();
 						}
 					} // end under streak
-						// General
+					// General
 					else {
 						if (proposedCard == null) {
 							draw(1);
@@ -473,7 +471,8 @@ public class Game {
 				}
 				// TODO: bringback conditions can be implemented here, if
 				// needed. If so, modify the above code for win condition.
-				if (isAskingSuit && askedSuit == null) {
+				if (hasToAskSuit) {
+					hasToAskSuit = false;
 					askedSuit = curPlayer.requestSuit();
 				}
 
@@ -486,7 +485,8 @@ public class Game {
 
 		/**
 		 * THE FOLLOWING METHODS WORK WITH THE STATE OF ONE ITERATION OF THE
-		 * GAME LOOP.
+		 * GAME LOOP. USING THEM OUTSIDE OF GAMELOOP CAN RESULT IN EXCEPTIONS OR
+		 * UNWANTED BEHAVIOUR.
 		 */
 
 		/**
@@ -546,6 +546,7 @@ public class Game {
 			isValidMove = true;
 		}
 
+		// This method is such a mess. It works, but it's so bad.
 		private void setFlags(GCard card) {
 			if (card == null) {
 				if (isAceStreak || isUnderStreak) {
@@ -573,6 +574,7 @@ public class Game {
 				break;
 			case SEVEN:
 				isAskingSuit = true;
+				hasToAskSuit = true;
 				isUnderStreak = false;
 				isAceStreak = false;
 				underStreak = 0;
