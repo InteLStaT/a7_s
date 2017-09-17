@@ -192,10 +192,6 @@ public class Game {
 		}
 	}
 
-	private void setGameState(GameState state) {
-		gameState = state;
-	}
-
 	private void _sleep(long millis) {
 		try {
 			Thread.sleep(millis);
@@ -329,36 +325,27 @@ public class Game {
 
 	}
 
-	protected int underStreak = 0;
-	protected boolean isUnderStreak = false;
-	protected boolean isAceStreak = false;
-	protected boolean isAskingSuit;
-	protected boolean hasToAskSuit;
-	protected boolean isValidMove = false;
-	protected GCard proposedCard = null;
-	protected GCard.Suit askedSuit = null;
-
 	public boolean isUnderStreak() {
-		return isUnderStreak;
+		return gameLoop.isUnderStreak;
 	}
 
 	public int getUnderStreak() {
-		return underStreak;
+		return gameLoop.underStreak;
 	}
 
 	public boolean isAceStreak() {
-		return isAceStreak;
+		return gameLoop.isAceStreak;
 	}
 
 	public boolean isAskingSuit() {
-		return isAskingSuit;
+		return gameLoop.isAskingSuit;
 	}
 
 	public GCard.Suit getAskedSuit() throws IllegalStateException {
 		if (!isAskingSuit()) {
 			throw new IllegalStateException("not asking suit");
 		}
-		return askedSuit;
+		return gameLoop.askedSuit;
 	}
 
 	// TODO: disable reflection.
@@ -366,6 +353,15 @@ public class Game {
 	// not in the best way though. But that's a problem for GED.
 	class GameLoop implements Runnable, GameListener {
 
+		protected int underStreak = 0;
+		protected boolean isUnderStreak = false;
+		protected boolean isAceStreak = false;
+		protected boolean isAskingSuit;
+		protected boolean hasToAskSuit;
+		protected boolean isValidMove = false;
+		protected GCard proposedCard = null;
+		protected GCard.Suit askedSuit = null;
+		
 		/***************
 		 * GAME LOOP *
 		 ***************/
@@ -390,9 +386,7 @@ public class Game {
 			pile.add(stock.dealCard());
 
 			setGameState(GameState.INGAME);
-			/* EVENT */gameLoop
-					.gameStateChanged(new GamePassiveEvent(Game.this, null, round, GameState.PREGAME, gameState));
-
+			
 			// Pause for a second... no way the game is already starting!
 			_sleep(1000);
 
@@ -470,8 +464,6 @@ public class Game {
 				if (curPlayer.getCardCount() == 0) {
 					winner = curPlayer;
 					setGameState(GameState.POSTGAME);
-					/* EVENT */gameStateChanged(
-							new GamePassiveEvent(Game.this, curPlayer, round, GameState.INGAME, getGameState()));
 					break;
 				}
 				// TODO: bringback conditions can be implemented here, if
@@ -605,6 +597,13 @@ public class Game {
 			/* EVENT */currentPlayerChanged(new GamePassiveEvent(Game.this, curPlayer, round, gameState, gameState));
 		}
 
+		private void setGameState(GameState state) {
+			GameState oldState = gameState;
+			gameState = state;
+			/* EVENT */gameStateChanged(new GamePassiveEvent(Game.this, null, round, oldState, gameState));
+		}
+
+		
 		/************************
 		 * EVENT FIRING METHODS *
 		 ************************/
